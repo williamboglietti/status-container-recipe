@@ -21,11 +21,9 @@ interdit de distribuer Cachet comme produit autonome. Le dépôt fournit donc
 seulement la recette : chacun construit l'image lui-même, avec `make build`,
 ou la tire de son propre registre privé.
 
-La CI publique construit et teste des images temporaires sur ses runners, sans
-authentification à un registre ni publication d’image. Elle ne téléverse que les locks
-et les rapports de tests synthétiques ou de vulnérabilités. Pour conserver une
-image dans un registre privé, utiliser un dépôt de construction privé séparé ;
-voir [la maintenance et la reprise du projet](docs/MAINTENANCE.md).
+Les références de Cachet, des dépendances et des images de base sont figées
+pour rendre la construction reproductible. La CI valide les mises à jour sur
+AMD64 et ARM64 sans distribuer les images construites.
 
 ## Démarrage rapide
 
@@ -231,70 +229,15 @@ lancées avant les trois services.
 Pour revenir en arrière, restaurez la sauvegarde **et** l'image précédente :
 une image plus ancienne ne sait pas relire des données déjà migrées.
 
-## Mise à jour automatique de la recette
+## Sources et contributions
 
-Le workflow [`image.yml`](.github/workflows/image.yml) utilise les runners
-hébergés par GitHub (`ubuntu-24.04` et `ubuntu-24.04-arm`). Il n'a aucun droit
-sur les packages et ne publie aucune image, couche, archive de sources amont
-ou sauvegarde de données.
+[`sources.lock.json`](sources.lock.json) et [`composer.lock`](composer.lock)
+identifient les versions utilisées pour construire l'image. Les mises à jour
+amont sont validées automatiquement avant l'enregistrement de nouveaux locks.
+La mise à jour d'une instance reste une opération explicite, décrite ci-dessus.
 
-```mermaid
-flowchart TD
-    A[Toutes les 2 h, push sur main ou lancement manuel] --> B[Résoudre les sources et dépendances]
-    B --> C{Changement ou validation demandée ?}
-    C -- non --> D[Conserver les locks existants]
-    C -- oui --> E[Construire amd64 et arm64 sur des runners natifs]
-    E --> F[Tester SQLite, PostgreSQL, MySQL, MariaDB, healthchecks et Compose]
-    F --> G[Contrôler les vulnérabilités corrigeables]
-    G --> H[Enregistrer les locks validés sur les deux architectures]
-```
-
-- **Toutes les deux heures**, comparaison des commits de `cachethq/cachet@3.x`
-  et `cachethq/core@main`, des digests FrankenPHP/Composer et de la recette.
-- **Chaque jour à 03:43 UTC**, nouvelle résolution Composer.
-- **Chaque semaine ISO UTC**, reconstruction sans cache des paquets Debian.
-- Les tests couvrent l'installation vierge, la connexion administrateur,
-  l'API/MCP désactivés, la persistance après redémarrage, les rôles et les quatre
-  moteurs de base. Les tests de migration depuis un ancien digest et de
-  restauration correspondante nécessitent `--previous` ; ils restent au
-  constructeur privé ou à l'opérateur qui possède cette image.
-- Un échec empêche l'enregistrement des nouveaux locks. Un changement de `main`
-  pendant les tests empêche également l'enregistrement d'un résultat périmé.
-- [`checks.yml`](.github/workflows/checks.yml) contrôle les sources et les tests
-  unitaires à chaque pull request et push. Les tests d'image complets tournent
-  sur `main`, sur les changements amont et au lancement manuel.
-
-Les fichiers de verrouillage publiés identifient les entrées validées. Chaque
-utilisateur construit et vérifie ensuite son image dans son propre environnement.
-
-## Construire et tester
-
-| Cible | Effet |
-| --- | --- |
-| `make build` | Prépare les sources figées et construit `status-v3:local` (`IMAGE=` et `PLATFORM=` pour changer). |
-| `make compose-build` | Construit l'image utilisée par `docker-compose.yml`. |
-| `make compose-up` / `make compose-down` | Crée les secrets manquants et démarre la pile / l'arrête. |
-| `make test` | Lance tous les tests sur l'image construite. |
-| `make test-image` | Contrat de l'image sur SQLite : installation, connexion, alias v2, migration (`--previous`). |
-| `make test-healthcheck` | Healthchecks des trois rôles, worker suspendu puis tué. |
-| `make test-pgsql`, `test-mysql`, `test-mariadb` | Installation, migrations, mise à jour et restauration sur chaque serveur. |
-| `make test-compose` | `docker-compose.yml` de bout en bout. |
-| `make lint` | `actionlint` et `shellcheck`. |
-| `make test-unit` | Régressions des outils de build et des arguments, sans Docker. |
-| `make update-dependencies` | Résout de nouveau les sources et les dépendances (modifie les locks). |
-
-Sans `make`, le même lanceur prépare les sources et passe les arguments à
-Docker sans découpage shell :
-
-```sh
-python3 scripts/project.py build
-```
-
-Les tests utilisent des volumes, comptes et données synthétiques, supprimés à
-la fin. Ils sont écrits en Python, sans dépendance, plutôt qu'en bats comme
-dans l'image v2. Ils vérifient des comportements, et pas seulement des lignes
-de journal : connexion Livewire réelle, empreintes des données avant et après
-une migration, restauration d'un dump, absence des secrets dans les journaux.
+Pour modifier la recette, lancer les tests ou comprendre les contrôles CI,
+consultez le [guide de contribution](CONTRIBUTING.md).
 
 ## Licences
 
