@@ -4,7 +4,7 @@
 name: cachet
 
 x-cachet: &cachet
-  image: ${CACHET_IMAGE:-status-container-recipe:local}
+  image: ${CACHET_IMAGE:-status-v3:local}
   init: true
   restart: unless-stopped
   user: "33:33"

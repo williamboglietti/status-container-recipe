@@ -52,7 +52,7 @@ def create_secrets(root: Path, email: str) -> None:
 
 
 def execute(command: str) -> None:
-    image = os.environ.get("IMAGE") or "status-container-recipe:local"
+    image = os.environ.get("IMAGE") or "status-v3:local"
     target_platform = os.environ.get("PLATFORM") or native_platform()
     if command in {"build", "compose-build"}:
         run([sys.executable, str(ROOT / "scripts/prepare-source.py")])

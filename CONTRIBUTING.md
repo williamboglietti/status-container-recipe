@@ -3,7 +3,7 @@
 ## Signaler un problème
 
 Les demandes d'évolution et les rapports de bug passent par le
-[gestionnaire d'issues](https://github.com/williamboglietti/status-container-recipe/issues).
+[gestionnaire d'issues](https://github.com/williamboglietti/status-v3/issues).
 Ce dépôt est une recette communautaire, sans lien avec l'équipe de Cachet : un
 problème de Cachet lui-même se signale en amont, sur
 [cachethq/cachet](https://github.com/cachethq/cachet/issues). Le support est
@@ -64,7 +64,7 @@ une autorisation de modifier un serveur.
 ```sh
 make lint                # actionlint et shellcheck
 make test-unit           # outils sans Docker
-make build               # image locale status-container-recipe:local
+make build               # image locale status-v3:local
 make test                # SQLite, PostgreSQL, MySQL, MariaDB et docker-compose.yml
 ```
 

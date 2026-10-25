@@ -4,9 +4,11 @@ Ce journal suit les changements de la recette. Les mises à jour automatiques de
 Cachet, de ses dépendances et des images de base sont enregistrées par la CI
 dans les commits `build: update validated Cachet sources …`.
 
-## [Unreleased](https://github.com/williamboglietti/status-container-recipe/commits/main)
+## [Unreleased](https://github.com/williamboglietti/status-v3/commits/main)
 
 Première version publique de la recette pour Cachet v3.
+
+Nom du projet : `status-v3` (renommage de `status-container-recipe`).
 
 **Fonctionnalités :**
 

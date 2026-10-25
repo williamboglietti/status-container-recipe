@@ -152,7 +152,7 @@ jobs:
           fi
           docker buildx build --load --pull \
             --platform "linux/$ARCHITECTURE" \
-            --tag status-container-recipe:test \
+            --tag status-v3:test \
             --build-arg "FRANKENPHP_IMAGE=$FRANKENPHP_IMAGE" \
             --build-arg "COMPOSER_IMAGE=$COMPOSER_IMAGE" \
             --build-arg "CACHET_APP_REF=$APP_REF" \
@@ -166,7 +166,7 @@ jobs:
             "${flags[@]}" .
 
       - name: Test the image contract on SQLite
-        run: python3 test/test-image.py --image status-container-recipe:test
+        run: python3 test/test-image.py --image status-v3:test
 
       - name: Keep the isolated functional test report
         if: always()
@@ -181,12 +181,12 @@ jobs:
       - name: Verify role healthchecks and a killed worker with Compose
         env:
           ARCHITECTURE: ${{ matrix.architecture }}
-        run: python3 test/test-healthcheck.py --image status-container-recipe:test --platform "linux/$ARCHITECTURE"
+        run: python3 test/test-healthcheck.py --image status-v3:test --platform "linux/$ARCHITECTURE"
 
       - name: Test PostgreSQL, MySQL and MariaDB backends
         run: |
           for database in pgsql mysql mariadb; do
-            python3 test/test-database.py --image status-container-recipe:test --database "$database"
+            python3 test/test-database.py --image status-v3:test --database "$database"
           done
 
       - name: Keep the database test reports
@@ -200,7 +200,7 @@ jobs:
           retention-days: 14
 
       - name: Run docker-compose.yml end to end
-        run: python3 test/test-compose.py --image status-container-recipe:test
+        run: python3 test/test-compose.py --image status-v3:test
 
       - name: Install pinned Trivy scanner
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
@@ -211,7 +211,7 @@ jobs:
       - name: Reject fixable HIGH and CRITICAL image vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: status-container-recipe:test
+          image-ref: status-v3:test
           scan-type: image
           scanners: vuln
           vuln-type: os,library

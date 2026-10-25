@@ -2,10 +2,14 @@
 
 ## Projet et périmètre
 
-**Status Container Recipe** fournit une recette Docker communautaire pour
+**Status v3** fournit une recette Docker communautaire pour
 Cachet v3. Le dépôt de référence est
-[`williamboglietti/status-container-recipe`](https://github.com/williamboglietti/status-container-recipe).
+[`williamboglietti/status-v3`](https://github.com/williamboglietti/status-v3).
 Il n'est ni affilié à Cachet ni approuvé par son équipe.
+
+Le nom `status-v3` a été choisi par William le 25 octobre 2026. Le dépôt a été
+renommé depuis `status-container-recipe`, en conservant son historique, ses
+issues et ses pull requests.
 
 La recette est sous BSD-3-Clause. Cachet, son core, FrankenPHP, PHP et les
 dépendances conservent leurs propres licences. Aucun code amont, logo, image
