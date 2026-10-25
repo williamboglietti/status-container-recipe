@@ -1,0 +1,107 @@
+# Cachet v3 with PostgreSQL. Build the image with `make compose-build`, then run
+# `make compose-up`: it creates the missing files in .secrets/ and starts the stack.
+# Settings such as APP_URL or CACHET_IMAGE can go in a .env file next to this one.
+name: cachet
+
+x-cachet: &cachet
+  image: ${CACHET_IMAGE:-status-container-recipe:local}
+  init: true
+  restart: unless-stopped
+  user: "33:33"
+  environment: &cachet-environment
+    APP_NAME: ${APP_NAME:-Cachet}
+    APP_URL: ${APP_URL:-http://localhost:8000}
+    APP_KEY_FILE: /run/secrets/app_key
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    DB_DATABASE: cachet
+    DB_USERNAME: cachet
+    DB_PASSWORD_FILE: /run/secrets/database_password
+    MAIL_MAILER: ${MAIL_MAILER:-log}
+  secrets:
+    - app_key
+    - database_password
+  volumes:
+    - cachet_storage:/app/storage
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 90s
+  depends_on:
+    initialize:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cachet
+      POSTGRES_USER: cachet
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets:
+      - database_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--username=cachet", "--dbname=cachet"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # One-shot steps: apply pending migrations, then create the first
+  # administrator on an empty database. Both are no-ops once done.
+  migrate:
+    <<: *cachet
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  initialize:
+    <<: *cachet
+    command: ["initialize"]
+    restart: "no"
+    environment:
+      <<: *cachet-environment
+      ADMIN_EMAIL_FILE: /run/secrets/admin_email
+      ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+    secrets:
+      - app_key
+      - database_password
+      - admin_email
+      - admin_password
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    <<: *cachet
+    command: ["web"]
+    ports:
+      - "${CACHET_HTTP:-127.0.0.1:8000}:8000"
+
+  worker:
+    <<: *cachet
+    command: ["worker"]
+
+  scheduler:
+    <<: *cachet
+    command: ["scheduler"]
+
+volumes:
+  cachet_storage:
+  postgres_data:
+
+secrets:
+  app_key:
+    file: .secrets/app-key
+  database_password:
+    file: .secrets/database-password
+  admin_email:
+    file: .secrets/admin-email
+  admin_password:
+    file: .secrets/admin-password

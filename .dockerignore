@@ -1,0 +1,16 @@
+**
+!Dockerfile
+!docker/
+!docker/**
+!.build/
+!.build/source/
+!.build/source/**
+**/.git
+**/vendor
+**/node_modules
+**/.env
+**/.env.*
+**/*.sqlite
+**/*.sqlite-*
+**/credentials*
+.secrets/

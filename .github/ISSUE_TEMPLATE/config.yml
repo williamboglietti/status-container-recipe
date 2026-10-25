@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation officielle Cachet
+    url: https://docs.cachethq.io/
+    about: Questions sur le logiciel Cachet lui-même et sa licence.

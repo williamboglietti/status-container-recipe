@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # Runtime application/core/Composer locks and base digests are refreshed by image.yml.
+  # Keep the automation itself up to date through reviewable, SHA-pinned action PRs.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:29'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    labels: []

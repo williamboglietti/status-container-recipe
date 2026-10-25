@@ -1,0 +1,25 @@
+{
+	admin off
+	auto_https off
+	frankenphp
+}
+
+:8000 {
+	root * /app/public
+	encode zstd gzip
+
+	# Uploaded files must never become PHP entry points.
+	@non_front_controller {
+		path *.php *.php/*
+		not path /index.php /index.php/*
+	}
+	respond @non_front_controller 404
+
+	php_server {
+		try_files {path} index.php
+	}
+	log {
+		output stdout
+		format json
+	}
+}

@@ -1,0 +1,271 @@
+name: Build and validate recipe
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 */2 * * *'
+    # The resolve step matches this exact expression to refresh Composer dependencies daily.
+    - cron: '43 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Refresh dependencies and rebuild, even without a source change
+        type: boolean
+        default: true
+
+# Public builds never authenticate to a registry or publish an image.
+# Uploaded artifacts contain locks or synthetic test/scanner reports only.
+permissions:
+  contents: read
+
+# Source resolution, tests and lock recording form one transaction.
+concurrency:
+  group: recipe-validation
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolve:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      build_required: ${{ steps.receipt.outputs.build_required }}
+      fingerprint: ${{ steps.sources.outputs.fingerprint }}
+      app_ref: ${{ steps.sources.outputs.app_ref }}
+      core_ref: ${{ steps.sources.outputs.core_ref }}
+      frankenphp_image: ${{ steps.sources.outputs.frankenphp_image }}
+      composer_image: ${{ steps.sources.outputs.composer_image }}
+      force_rebuild: ${{ steps.sources.outputs.force_rebuild }}
+    steps:
+      - name: Check out image recipe
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx for the resolver toolchain
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Resolve upstream sources, dependencies and base digests
+        id: sources
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_UPDATE: ${{ inputs.force || false }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          flags=()
+          if [[ "$FORCE_UPDATE" == "true" ]]; then
+            flags+=(--force)
+          fi
+          if [[ "$EVENT_NAME" == "push" || "$FORCE_UPDATE" == "true" || "$EVENT_SCHEDULE" == "43 3 * * *" ]]; then
+            flags+=(--refresh-dependencies)
+          fi
+          python3 scripts/resolve.py "${flags[@]}"
+
+      - name: Decide whether candidate locks need a new validation
+        id: receipt
+        env:
+          SOURCE_CHANGED: ${{ steps.sources.outputs.changed }}
+          FORCE_UPDATE: ${{ inputs.force || false }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          required = (os.environ['SOURCE_CHANGED'] == 'true' or
+                      os.environ['FORCE_UPDATE'] == 'true' or
+                      os.environ['EVENT_NAME'] in ('push', 'workflow_dispatch'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('build_required=' + str(required).lower() + '\n')
+          PYTHON
+
+      - name: Prepare locked app source
+        if: steps.receipt.outputs.build_required == 'true'
+        run: python3 scripts/prepare-source.py
+
+      - name: Share only reproducible source locks
+        if: steps.receipt.outputs.build_required == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: resolved-lock
+          path: |
+            sources.lock.json
+            composer.lock
+          if-no-files-found: error
+          retention-days: 14
+
+  build-test:
+    needs: resolve
+    if: needs.resolve.outputs.build_required == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Check out tested recipe revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download resolved locks
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: resolved-lock
+
+      - name: Prepare exact locked app source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/prepare-source.py
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Dockerfile also gates the build with composer audit --locked --no-dev.
+      - name: Build once and load the candidate to test
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          FRANKENPHP_IMAGE: ${{ needs.resolve.outputs.frankenphp_image }}
+          COMPOSER_IMAGE: ${{ needs.resolve.outputs.composer_image }}
+          FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
+          APP_REF: ${{ needs.resolve.outputs.app_ref }}
+          CORE_REF: ${{ needs.resolve.outputs.core_ref }}
+          FORCE_REBUILD: ${{ needs.resolve.outputs.force_rebuild }}
+        run: |
+          flags=()
+          if [[ "$FORCE_REBUILD" == "true" ]]; then
+            flags+=(--no-cache)
+          fi
+          docker buildx build --load --pull \
+            --platform "linux/$ARCHITECTURE" \
+            --tag status-container-recipe:test \
+            --build-arg "FRANKENPHP_IMAGE=$FRANKENPHP_IMAGE" \
+            --build-arg "COMPOSER_IMAGE=$COMPOSER_IMAGE" \
+            --build-arg "CACHET_APP_REF=$APP_REF" \
+            --build-arg "CACHET_CORE_REF=$CORE_REF" \
+            --build-arg "SOURCE_FINGERPRINT=$FINGERPRINT" \
+            --build-arg "BUILD_REVISION=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$FINGERPRINT" \
+            "${flags[@]}" .
+
+      - name: Test the image contract on SQLite
+        run: python3 test/test-image.py --image status-container-recipe:test
+
+      - name: Keep the isolated functional test report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: functional-test-report-${{ matrix.architecture }}
+          path: .build/test-report.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Verify role healthchecks and a killed worker with Compose
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+        run: python3 test/test-healthcheck.py --image status-container-recipe:test --platform "linux/$ARCHITECTURE"
+
+      - name: Test PostgreSQL, MySQL and MariaDB backends
+        run: |
+          for database in pgsql mysql mariadb; do
+            python3 test/test-database.py --image status-container-recipe:test --database "$database"
+          done
+
+      - name: Keep the database test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: database-test-reports-${{ matrix.architecture }}
+          path: .build/database-*-test-report.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Run docker-compose.yml end to end
+        run: python3 test/test-compose.py --image status-container-recipe:test
+
+      - name: Install pinned Trivy scanner
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.75.0
+          cache: false
+
+      - name: Reject fixable HIGH and CRITICAL image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: status-container-recipe:test
+          scan-type: image
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: .build/trivy.json
+          skip-setup-trivy: true
+
+      - name: Keep the vulnerability report, including failed checks
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vulnerability-report-${{ matrix.architecture }}
+          path: .build/trivy.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  record-locks:
+    needs: [resolve, build-test]
+    if: github.ref == 'refs/heads/main' && needs.resolve.outputs.build_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the source revision tested by both architectures
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Download resolved locks
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: resolved-lock
+
+      - name: Record only validated source and dependency locks
+        env:
+          FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
+        run: |
+          git fetch --no-tags origin main
+          if [[ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]]; then
+            echo 'main changed during testing; refusing stale lock update.' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- sources.lock.json composer.lock
+          if ! git diff --cached --quiet; then
+            git commit -m "build: update validated Cachet sources ${FINGERPRINT:0:12}"
+            git push origin HEAD:main
+          fi
+          # These locks passed both architectures. No image is uploaded.
+          printf '%s\n' 'Recipe validated; no image published and no server changed.' >> "$GITHUB_STEP_SUMMARY"

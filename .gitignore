@@ -1,0 +1,12 @@
+.build/
+.test/
+.env
+.env.*
+!.env.example
+secrets/
+.secrets/
+*.sqlite
+*.sqlite-*
+__pycache__/
+*.pyc
+*.log
