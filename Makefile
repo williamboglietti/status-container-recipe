@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-IMAGE ?= status-container-recipe:local
+IMAGE ?= status-v3:local
 # Empty selects the native Linux architecture in the Python launcher.
 PLATFORM ?=
 ADMIN_EMAIL ?= admin@example.com

@@ -1,4 +1,4 @@
-# Status Container Recipe
+# Status v3
 
 Recette Docker pour [Cachet](https://cachethq.io/) v3, le logiciel de page de
 statut. Elle construit une image prête à l'auto-hébergement, la teste sur
@@ -34,11 +34,11 @@ Prérequis : Docker avec Compose et Buildx, `make` et Python 3.12+.
 1. Cloner le dépôt :
 
    ```sh
-   git clone https://github.com/williamboglietti/status-container-recipe.git
-   cd status-container-recipe
+   git clone https://github.com/williamboglietti/status-v3.git
+   cd status-v3
    ```
 
-2. Construire l'image locale `status-container-recipe:local` à partir des sources figées :
+2. Construire l'image locale `status-v3:local` à partir des sources figées :
 
    ```sh
    make compose-build
@@ -163,7 +163,7 @@ Nouvelles variables :
 | `LOG_LEVEL` | Défaut `warning`. |
 | `CACHET_FEED_URI` | Vide par défaut : pas d'appel au flux du blog de Cachet. |
 | `CACHET_DOCKER` | `true` dans l'image ; information transmise par la télémétrie si elle est activée. |
-| `CACHET_IMAGE`, `CACHET_HTTP` | Compose seulement : image utilisée (défaut `status-container-recipe:local`) et adresse publiée (défaut `127.0.0.1:8000`). |
+| `CACHET_IMAGE`, `CACHET_HTTP` | Compose seulement : image utilisée (défaut `status-v3:local`) et adresse publiée (défaut `127.0.0.1:8000`). |
 
 Les autres variables de Cachet 3 (`CACHET_PATH`, `CACHET_TITLE`,
 `CACHET_API_RATE_LIMIT`, etc.) sont décrites dans la
@@ -271,7 +271,7 @@ utilisateur construit et vérifie ensuite son image dans son propre environnemen
 
 | Cible | Effet |
 | --- | --- |
-| `make build` | Prépare les sources figées et construit `status-container-recipe:local` (`IMAGE=` et `PLATFORM=` pour changer). |
+| `make build` | Prépare les sources figées et construit `status-v3:local` (`IMAGE=` et `PLATFORM=` pour changer). |
 | `make compose-build` | Construit l'image utilisée par `docker-compose.yml`. |
 | `make compose-up` / `make compose-down` | Crée les secrets manquants et démarre la pile / l'arrête. |
 | `make test` | Lance tous les tests sur l'image construite. |
