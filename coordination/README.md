@@ -39,7 +39,10 @@ Elle n'est pas destinée à être fusionnée globalement dans `main`.
 passation retirée de `main`, README centré sur l'installation et l'exploitation,
 CONTRIBUTING centré sur le développement, AGENTS réduit aux règles essentielles.
 Les cinq fichiers modifiés sont Markdown ; runtime et workflows inchangés.
-Vérifier l'état de la PR et sa CI avant de poursuivre un développement public.
+La CI de sources est reçue sur `14acf5e` (run40214867739, neuf tests inclus).
+PR4 fusionnée dans `main` au commit `ebcfb8e`. L'arbre de cette tête ne contient
+plus de passation ou de dossier de coordination. Les seuls changements du
+commit de fusion sont cinq Markdown ; les sources applicatives sont inchangées.
 
 L'issue1 est recentrée sur la validation publique multiarchitecture et close
 sur les preuves reçues. Sa passation personnelle initiale est conservée dans
