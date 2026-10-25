@@ -23,7 +23,9 @@ load_secret() {
     fi
     if [ -n "$secret_file" ]; then
         [ "$secret_present" = false ] || fail "$secret_name and its _FILE variant cannot both be set."
-        [ -f "$secret_file" ] && [ -r "$secret_file" ] || fail "The file for $secret_name is not readable."
+        if [ ! -f "$secret_file" ] || [ ! -r "$secret_file" ]; then
+            fail "The file for $secret_name is not readable."
+        fi
         secret_value="$(cat -- "$secret_file")"
         [ -n "$secret_value" ] || fail "The file for $secret_name is empty."
         export "$secret_name=$secret_value"
