@@ -4,14 +4,14 @@
     "commit": "40bd0819ee46ee7094c336a1240a2a7a1291ccb8",
     "repository": "cachethq/cachet"
   },
-  "composer_lock_sha256": "db32c295816c8924be7b0e89eec03b80b54cd7cac350505a7fc2454ef112231a",
+  "composer_lock_sha256": "0914b86667b11af3a214a4fb1acdc7dfae5a71cf37a932a8cd2c2c3c01861c5e",
   "core": {
     "branch": "main",
     "commit": "c5f06fe8d8e2b83652c6f9632eb48414fb4be160",
     "repository": "cachethq/core"
   },
   "dependency_checked_on": "2026-10-25",
-  "fingerprint": "391692693eddb6cb08995513f8f39b49252f29600206e71096d44310157ba071",
+  "fingerprint": "f06fb958931ccf186bfea187852dbc3dcac8ef09d631d09742d1402dea891b5c",
   "images": {
     "composer": {
       "digest": "sha256:b6dcd72ca98fa19d0e5b8476de179859704891fad06dd9e0b96833d4c430a5fc",
@@ -23,6 +23,6 @@
     }
   },
   "os_rebuild_week": "2026-W43",
-  "recipe_sha256": "3550476a0dcbcffa08c85763346ab269a902404ebbb4f594cd36a2820d3939f9",
+  "recipe_sha256": "0dc8e978b01c77170a8ef0986d1b8db545e5ad886c5dab30305e5fb82f57ce77",
   "schema_version": 1
 }
