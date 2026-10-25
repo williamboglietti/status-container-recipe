@@ -47,7 +47,8 @@ anciens digests et des consommateurs. Ce projet public ne change aucun serveur.
   exécution historique réussie de la préparation ne valide pas ce nouveau commit.
 - Réception locale du 25 octobre : `make lint`, neuf tests unitaires, syntaxe
   des neuf fichiers Python, `docker compose config --quiet`, cohérence des SHA
-  du lock Composer/core et absence d'accès au registre dans les deux workflows.
+  du lock Composer/core et absence d'authentification à un registre ou de
+  publication d'image dans les deux workflows.
   Aucun moteur Docker n'était disponible sur ce Mac pour recevoir l'image ; les
   tests des deux architectures et des bases sont à recevoir dans la nouvelle CI.
 

@@ -22,7 +22,7 @@ seulement la recette : chacun construit l'image lui-même, avec `make build`,
 ou la tire de son propre registre privé.
 
 La CI publique construit et teste des images temporaires sur ses runners, sans
-connexion à un registre ni publication d’image. Elle ne téléverse que les locks
+authentification à un registre ni publication d’image. Elle ne téléverse que les locks
 et les rapports de tests synthétiques ou de vulnérabilités. Pour conserver une
 image dans un registre privé, utiliser un dépôt de construction privé séparé ;
 voir [la maintenance et la reprise du projet](docs/MAINTENANCE.md).
