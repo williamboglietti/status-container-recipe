@@ -25,15 +25,23 @@ Elle n'est pas destinée à être fusionnée globalement dans `main`.
 - Projet public renommé en `status-v3`, `main` à `ab1c680`.
 - Première validation complète des deux architectures et moteurs de base reçue
   sur `afa10e7`, run40213445384 ; locks validés au commit `624adbb`.
-- Validation de la tête renommée suivie dans le run40214162804 ; vérifier son
-  résultat terminal avant de l'annoncer reçue.
+- Validation complète de la tête renommée `ab1c680` reçue dans le
+  run40214162804 : deux architectures, quatre bases, rôles, Compose et scanner.
+  Locks enregistrés au commit `240b545`.
 - La construction privée, la réception des permissions du package et les tests
   de migration/restauration depuis l'ancienne image privée restent à préparer.
 - `cachet-status` privé et le dossier original `_public-prep/cachet-status`
   sont préservés. Aucune opération sur un serveur n'est autorisée par ces notes.
 
-## Nettoyage public en cours
+## Nettoyage de la documentation publique
 
-La passation `docs/MAINTENANCE.md` sera retirée de `main`, avec ses liens dans
-le README et le guide de contribution. L'issue1 sera recentrée sur une validation
-publique du produit ; son contenu personnel est conservé ci-dessus.
+[PR4](https://github.com/williamboglietti/status-v3/pull/4), tête `14acf5e` :
+passation retirée de `main`, README centré sur l'installation et l'exploitation,
+CONTRIBUTING centré sur le développement, AGENTS réduit aux règles essentielles.
+Les cinq fichiers modifiés sont Markdown ; runtime et workflows inchangés.
+Vérifier l'état de la PR et sa CI avant de poursuivre un développement public.
+
+L'issue1 est recentrée sur la validation publique multiarchitecture et close
+sur les preuves reçues. Sa passation personnelle initiale est conservée dans
+`ISSUE-1-HANDOFF.md`. Les tâches du constructeur privé et de restauration depuis
+un ancien digest restent ouvertes dans cette branche de coordination.

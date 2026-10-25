@@ -1,5 +1,9 @@
 # Maintenance et reprise — 25 octobre 2026
 
+Ce document est un suivi interne de la branche `codex/project-coordination`.
+Il ne doit pas être réintroduit dans `main`. Voir l'[index de coordination](../coordination/README.md)
+pour la séparation entre documentation publique, contributions et passations.
+
 ## Projet et périmètre
 
 **Status v3** fournit une recette Docker communautaire pour
@@ -53,8 +57,10 @@ anciens digests et des consommateurs. Ce projet public ne change aucun serveur.
   des neuf fichiers Python, `docker compose config --quiet`, cohérence des SHA
   du lock Composer/core et absence d'authentification à un registre ou de
   publication d'image dans les deux workflows.
-  Aucun moteur Docker n'était disponible sur ce Mac pour recevoir l'image ; les
-  tests des deux architectures et des bases sont à recevoir dans la nouvelle CI.
+  Le moteur Docker local était indisponible. La réception complète est ensuite
+  acquise dans GitHub Actions : run40213445384 sur `afa10e7`, puis run40214162804
+  sur `ab1c680`, chacun avec les deux architectures, quatre bases, rôles, Compose
+  et scanner. Cela ne prouve pas une migration depuis l'ancienne image privée.
 
 ## Lot suivant pour un agent
 
