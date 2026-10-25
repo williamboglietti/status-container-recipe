@@ -1,15 +1,11 @@
-# Consignes pour les agents de code
+# Consignes pour les agents
 
-Les règles du projet, les contrôles à lancer et le processus de publication
-sont dans [CONTRIBUTING.md](CONTRIBUTING.md). Ils s'appliquent à toute
-modification, qu'elle vienne d'une personne ou d'un agent.
-
-Répondre en français. Lire aussi [le point de reprise](docs/MAINTENANCE.md).
-Ce dépôt public contient la recette pour Cachet v3. Ses workflows ne doivent
-ni s'authentifier à un registre ni publier une image, ses couches, les sources
-amont ou un cache de build. Les bases et outils publics sont tirés anonymement.
-Les données synthétiques des tests restent isolées.
-Une image privée se construit depuis un autre dépôt privé, par SHA de recette.
-Conserver les licences et attributions amont dans l'image. Employer le nom
-Cachet seulement pour décrire la compatibilité ; ne pas présenter le projet
-comme officiel. Travailler par branche et documenter les contrôles reçus.
+- Lire [README.md](README.md) et [CONTRIBUTING.md](CONTRIBUTING.md).
+- Partir de `main` dans une branche `codex/…` et proposer une pull request.
+- Garder la documentation de `main` destinée aux utilisateurs et contributeurs.
+  Les passations, notes de session et consignes personnelles restent sur une
+  branche de coordination séparée ; ne pas les inclure dans les pull requests.
+- Ne pas publier d'image, de couche, de sources amont ou de cache de build dans
+  la CI publique. Conserver les licences et attributions amont dans l'image.
+- Ne jamais versionner de secrets ou de données d'exploitation.
+- Exécuter les contrôles adaptés au changement et les indiquer dans la PR.

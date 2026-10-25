@@ -2,71 +2,116 @@
 
 ## Signaler un problème
 
-Les demandes d'évolution et les rapports de bug passent par le
-[gestionnaire d'issues](https://github.com/williamboglietti/status-v3/issues).
-Ce dépôt est une recette communautaire, sans lien avec l'équipe de Cachet : un
-problème de Cachet lui-même se signale en amont, sur
-[cachethq/cachet](https://github.com/cachethq/cachet/issues). Le support est
-assuré au mieux.
+Ouvrez une [issue](https://github.com/williamboglietti/status-v3/issues) pour un
+problème de construction, de configuration ou de fonctionnement du conteneur.
+Indiquez le commit utilisé, l'architecture, les versions de Docker et Compose,
+les étapes de reproduction et le résultat attendu.
 
-Ne joignez jamais d'`APP_KEY`, de mot de passe, de dump de base de données ni
-de contenu de `.secrets/` à une issue.
+Pour un problème du logiciel Cachet lui-même, utilisez le dépôt amont
+[cachethq/cachet](https://github.com/cachethq/cachet/issues).
 
-## Branches et validation
+Ne joignez pas de clé `APP_KEY`, de mot de passe, de dump, de fichier `.env`
+ou de contenu de `.secrets/` à une issue ou à une pull request.
 
-- `main` contient la recette publique et ses locks. Préparer les évolutions dans
-  une branche, puis une pull request ; les agents utilisent le préfixe `codex/`.
-- Les contrôles de sources tournent sur les pull requests. Chaque push sur
-  `main` construit et teste les images sur `linux/amd64` et `linux/arm64`.
-- Les mises à jour amont sont vérifiées toutes les deux heures, avec résolution
-  Composer quotidienne et reconstruction hebdomadaire sans cache.
-- Après réussite des deux architectures, le workflow enregistre seulement
-  `sources.lock.json` et `composer.lock` dans un commit de mise à jour.
-- La CI publique n'a aucun accès aux packages et ne publie aucune image, couche,
-  archive de sources amont ou sauvegarde. Les artifacts contiennent seulement
-  les locks et les rapports des données synthétiques ou du scanner.
+## Proposer une modification
 
-Pour forcer une validation : **Actions → Build and validate recipe → Run workflow**.
+Créez une branche depuis `main`, puis une pull request qui décrit le problème,
+le changement proposé et les contrôles réellement exécutés. Gardez chaque PR
+centrée sur un sujet et mettez à jour la documentation utilisateur si le
+comportement change.
 
-## Image privée et reprise
+`main` contient le code et la documentation publics du projet. Les documents
+publiés doivent aider à installer, utiliser, développer ou contribuer à la
+recette.
 
-L'image se construit chez l'utilisateur. Un registre d'images privées se gère
-à partir d'un dépôt de construction privé séparé, en épinglant un commit de la
-recette publique. La confidentialité du registre et ses permissions doivent
-être reçues avant toute publication privée. Ne pas convertir le dépôt privé
-existant en public ni l'archiver pendant cette préparation.
+## Environnement de développement
 
-Le [point de reprise](docs/MAINTENANCE.md) décrit l'architecture, les preuves
-attendues et les travaux restants. Aucune version de cette recette ne constitue
-une autorisation de modifier un serveur.
-
-## Règles du projet
-
-- `sources.lock.json` et `composer.lock` décrivent exactement ce qui a été
-  testé. Seuls `scripts/resolve.py` (`make update-dependencies`) et la CI les
-  modifient.
-- Ne pas ajouter de publication d’image ou de cache de build aux workflows
-  publics. Les anciens digests privés relèvent du constructeur privé.
-- Aucune clé `APP_KEY`, aucun mot de passe, token, fichier `.env`, base de
-  données ou upload dans Git ou dans l'image.
-- `web`, `worker` et `scheduler` ne migrent ni n'initialisent jamais la base.
-  `migrate` et `initialize` restent des commandes explicites.
-- Pas de seeder de démonstration ; le mode démo et `APP_DEBUG` restent
-  interdits dans l'image.
-- Conserver la distribution amont, ses fichiers de licence et ses
-  attributions. Ne pas utiliser le logo de Cachet ni présenter ce dépôt comme
-  officiel ([politique de marque](https://github.com/cachethq/core/blob/main/TRADEMARKS.md)).
-- Épingler toute action GitHub par SHA. La CI n'utilise que `GITHUB_TOKEN` et
-  les runners hébergés par GitHub.
-
-## Avant une pull request
+La construction et les tests demandent Docker avec Compose et Buildx, `make`
+et Python 3.12+. Les contrôles statiques utilisent `actionlint` et `shellcheck`.
+Les scripts Python utilisent uniquement la bibliothèque standard.
 
 ```sh
-make lint                # actionlint et shellcheck
-make test-unit           # outils sans Docker
-make build               # image locale status-v3:local
-make test                # SQLite, PostgreSQL, MySQL, MariaDB et docker-compose.yml
+make lint
+make test-unit
+make build
+make test
 ```
 
-Décrivez dans la pull request les contrôles réellement lancés. Un test sur des
-données synthétiques ne prouve pas la restauration d'une instance réelle.
+Les tests d'intégration créent des conteneurs, volumes et identifiants
+synthétiques, puis les suppriment à la fin. Ils ne doivent pas utiliser une
+instance en service ni ses données.
+
+| Commande | Contrôle |
+| --- | --- |
+| `make lint` | Workflows GitHub Actions et scripts shell |
+| `make test-unit` | Outils de build, arguments et empreintes, sans Docker |
+| `make test-image` | Installation SQLite, connexion et persistance |
+| `make test-healthcheck` | Rôles web, worker et scheduler, y compris un worker interrompu |
+| `make test-pgsql`, `make test-mysql`, `make test-mariadb` | Installation et persistance avec chaque moteur |
+| `make test-compose` | Démarrage et redémarrage du fichier Compose fourni |
+| `make test` | Ensemble des contrôles unitaires et d'intégration |
+
+`IMAGE` permet de choisir le nom de l'image locale et `PLATFORM` sa plateforme,
+par exemple `make build IMAGE=status-v3:dev PLATFORM=linux/arm64`.
+
+Pour tester une migration depuis une image précédente et la restauration des
+données synthétiques associées, fournissez son digest immuable :
+
+```sh
+python3 test/test-image.py --image status-v3:local \
+  --previous 'exemple/image@sha256:<digest>'
+python3 test/test-database.py --image status-v3:local --database pgsql \
+  --previous 'exemple/image@sha256:<digest>'
+```
+
+Remplacez l'image et le digest par une référence accessible dans votre
+environnement. Sans `--previous`, ces scénarios de migration et de restauration
+ne sont pas exécutés.
+
+## Sources et dépendances
+
+`sources.lock.json` et `composer.lock` fixent les commits Cachet, les dépendances
+Composer et les digests des images de base. Pour les actualiser :
+
+```sh
+make update-dependencies
+```
+
+Cette commande résout les nouvelles entrées et modifie les locks. Construisez
+et testez l'image avant de proposer leur mise à jour ; ne les éditez pas à la
+main. L'empreinte de recette exclut les caches Python et fichiers générés.
+
+## Intégration continue
+
+[`checks.yml`](.github/workflows/checks.yml) contrôle les sources à chaque
+pull request et push sur `main` : actionlint, ShellCheck, tests unitaires,
+syntaxe Python et validation Compose.
+
+[`image.yml`](.github/workflows/image.yml) construit et teste les images sur
+des runners natifs AMD64 et ARM64. Il vérifie les entrées amont toutes les deux
+heures, résout les dépendances Composer quotidiennement et reconstruit sans
+cache chaque semaine ISO UTC. Un push sur `main` ou un lancement manuel demande
+également une validation.
+
+Le workflow vérifie les installations SQLite, PostgreSQL, MySQL et MariaDB,
+les rôles et le fichier Compose. `composer audit` et Trivy bloquent les
+vulnérabilités selon les critères définis dans le workflow. Les locks ne sont
+enregistrés qu'après réussite des deux architectures et si `main` n'a pas
+changé pendant les tests.
+
+La CI publique construit des images temporaires sans s'authentifier à un
+registre ni distribuer d'image, de couche, d'archive de sources amont ou de
+cache de build. Les artifacts contiennent seulement les locks et rapports de
+tests synthétiques ou du scanner.
+
+## Contrats à préserver
+
+- `web`, `worker` et `scheduler` ne migrent ni n'initialisent la base ; ces
+  opérations utilisent les commandes explicites `migrate` et `initialize`.
+- Le mode démonstration et `APP_DEBUG=true` restent refusés.
+- Les secrets sont lus à l'exécution et restent absents de Git, de l'image et
+  des journaux.
+- Les fichiers de licence et attributions amont restent dans l'image. Le projet
+  est indépendant de Cachet ; respecter sa
+  [politique de marque](https://github.com/cachethq/core/blob/main/TRADEMARKS.md).
+- Chaque action GitHub est épinglée par SHA.

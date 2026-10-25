@@ -8,8 +8,6 @@ dans les commits `build: update validated Cachet sources …`.
 
 Première version publique de la recette pour Cachet v3.
 
-Nom du projet : `status-v3` (renommage de `status-container-recipe`).
-
 **Fonctionnalités :**
 
 - Image FrankenPHP (PHP 8.4, Debian bookworm) en mode classique, port 8000,
@@ -26,7 +24,7 @@ Nom du projet : `status-v3` (renommage de `status-container-recipe`).
 - Tests sur SQLite, PostgreSQL 17, MySQL 8.4 et MariaDB 11.4, et test de bout
   en bout du `docker-compose.yml`.
 - CI sur les runners GitHub : vérification toutes les deux heures, résolution
-  Composer quotidienne, reconstruction hebdomadaire sans cache, validation sans publication des images pour `linux/amd64` et `linux/arm64`.
-
-- CI publique limitée aux sources, locks et rapports ; construction privée séparée.
+  Composer quotidienne et reconstruction hebdomadaire sans cache, avec validation
+  sur `linux/amd64` et `linux/arm64`.
+- CI publique limitée aux sources, locks et rapports, sans publication d’image.
 - Lanceur de build sans interpolation shell et empreintes indépendantes des caches Python.
