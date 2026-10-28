@@ -11,7 +11,7 @@
     "repository": "cachethq/core"
   },
   "dependency_checked_on": "2026-10-28",
-  "fingerprint": "38ae01e7788ec974301aece751b26e0286c9402205d215c675b3407e010b8d54",
+  "fingerprint": "a25a9b606e2c62034ea3addd74d9520f43627ef724c34cd1d3920db4a3449edc",
   "images": {
     "composer": {
       "digest": "sha256:b6dcd72ca98fa19d0e5b8476de179859704891fad06dd9e0b96833d4c430a5fc",
@@ -23,6 +23,6 @@
     }
   },
   "os_rebuild_week": "2026-W44",
-  "recipe_sha256": "fa9bf490bce7c47015e3d1293b23b528dfad66801b0732befce60b6cb7db290c",
+  "recipe_sha256": "d74647da22fd99a7c680042e0535110d177d8bb690cd062b09329af0e671899d",
   "schema_version": 1
 }
