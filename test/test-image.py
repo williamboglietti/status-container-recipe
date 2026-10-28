@@ -263,7 +263,9 @@ def main() -> None:
         preserved(before, snapshot(args.image, candidate))
         results.append("worker_scheduler_start_and_stop")
         if args.previous:
-            command(["pull", args.previous])
+            cached_previous = command(["image", "inspect", args.previous], check=False)
+            if cached_previous.returncode:
+                command(["pull", args.previous])
             old = new_volume("upgrade")
             cli(args.previous, old, "migrate")
             cli(args.previous, old, "initialize")
@@ -283,12 +285,12 @@ def main() -> None:
         else:
             results.append("first_publication_no_previous_image")
         args.report.parent.mkdir(exist_ok=True, parents=True)
-        args.report.write_text(json.dumps({"image": args.image, "previous": args.previous,
+        args.report.write_text(json.dumps({"image": args.image, "previous_image_tested": bool(args.previous),
                                           "checks": results, "passed": True}, indent=2) + "\n")
         print(json.dumps({"passed": True, "checks": results}, indent=2))
     except Exception as error:
         args.report.parent.mkdir(exist_ok=True, parents=True)
-        args.report.write_text(json.dumps({"image": args.image, "previous": args.previous,
+        args.report.write_text(json.dumps({"image": args.image, "previous_image_tested": bool(args.previous),
             "checks": results, "passed": False, "failure_type": type(error).__name__}, indent=2) + "\n")
         raise
     finally:

@@ -3,6 +3,8 @@ name: Build and validate recipe
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   schedule:
     - cron: '17 */2 * * *'
     # The resolve step matches this exact expression to refresh Composer dependencies daily.
@@ -14,10 +16,13 @@ on:
         type: boolean
         default: true
 
-# Public builds never authenticate to a registry or publish an image.
-# Uploaded artifacts contain locks or synthetic test/scanner reports only.
+# No public image is published. A maintainer-only publisher may write to a
+# private, unlinked GHCR package after both native architectures pass.
 permissions:
   contents: read
+
+env:
+  PRIVATE_IMAGE: ghcr.io/williamboglietti/status-v3
 
 # Source resolution, tests and lock recording form one transaction.
 concurrency:
@@ -30,7 +35,10 @@ defaults:
 
 jobs:
   resolve:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.repository == 'williamboglietti/status-v3' &&
+      (github.ref == 'refs/heads/main' || github.event_name == 'pull_request' ||
+       github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -80,7 +88,7 @@ jobs:
           import os
           required = (os.environ['SOURCE_CHANGED'] == 'true' or
                       os.environ['FORCE_UPDATE'] == 'true' or
-                      os.environ['EVENT_NAME'] in ('push', 'workflow_dispatch'))
+                      os.environ['EVENT_NAME'] in ('push', 'pull_request', 'workflow_dispatch'))
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('build_required=' + str(required).lower() + '\n')
           PYTHON
@@ -100,9 +108,46 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  build-test:
+  private-package:
     needs: resolve
-    if: needs.resolve.outputs.build_required == 'true'
+    if: github.ref == 'refs/heads/main' && needs.resolve.outputs.build_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      publish_enabled: ${{ steps.prepare.outputs.publish_enabled }}
+      previous_image: ${{ steps.prepare.outputs.previous_image }}
+    steps:
+      - name: Check out the recipe
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx for a private package bootstrap
+        if: vars.STATUS_V3_PRIVATE_IMAGE_ENABLED == 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Verify private GHCR readiness and previous image
+        id: prepare
+        env:
+          STATUS_V3_PRIVATE_IMAGE_ENABLED: ${{ vars.STATUS_V3_PRIVATE_IMAGE_ENABLED }}
+          STATUS_V3_GHCR_TOKEN: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
+          STATUS_V3_GHCR_USERNAME: williamboglietti
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: python3 scripts/private_image.py prepare
+
+      - name: Remove bootstrap registry credentials
+        if: always() && vars.STATUS_V3_PRIVATE_IMAGE_ENABLED == 'true'
+        run: docker logout ghcr.io || true
+
+  build-test:
+    needs: [resolve, private-package]
+    if: >-
+      always() && needs.resolve.result == 'success' &&
+      needs.resolve.outputs.build_required == 'true' &&
+      (needs.private-package.result == 'success' || needs.private-package.result == 'skipped' ||
+       needs.private-package.result == 'failure')
     strategy:
       fail-fast: false
       matrix:
@@ -135,6 +180,23 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
+      - name: Log in to pull the previous private image
+        if: needs.private-package.outputs.publish_enabled == 'true' && needs.private-package.outputs.previous_image != ''
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: williamboglietti
+          password: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
+
+      - name: Pull the previous image for migration tests
+        if: needs.private-package.outputs.publish_enabled == 'true' && needs.private-package.outputs.previous_image != ''
+        env:
+          PREVIOUS_IMAGE: ${{ needs.private-package.outputs.previous_image }}
+        run: |
+          echo "::add-mask::$PREVIOUS_IMAGE"
+          docker pull "$PREVIOUS_IMAGE"
+          docker logout ghcr.io
+
       # Dockerfile also gates the build with composer audit --locked --no-dev.
       - name: Build once and load the candidate to test
         env:
@@ -159,14 +221,18 @@ jobs:
             --build-arg "CACHET_CORE_REF=$CORE_REF" \
             --build-arg "SOURCE_FINGERPRINT=$FINGERPRINT" \
             --build-arg "BUILD_REVISION=$GITHUB_SHA" \
-            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label "org.opencontainers.image.version=$FINGERPRINT" \
             "${flags[@]}" .
 
       - name: Test the image contract on SQLite
-        run: python3 test/test-image.py --image status-v3:test
+        env:
+          PREVIOUS_IMAGE: ${{ needs.private-package.outputs.previous_image }}
+        run: |
+          flags=()
+          if [[ -n "$PREVIOUS_IMAGE" ]]; then flags+=(--previous "$PREVIOUS_IMAGE"); fi
+          python3 test/test-image.py --image status-v3:test "${flags[@]}"
 
       - name: Keep the isolated functional test report
         if: always()
@@ -184,9 +250,13 @@ jobs:
         run: python3 test/test-healthcheck.py --image status-v3:test --platform "linux/$ARCHITECTURE"
 
       - name: Test PostgreSQL, MySQL and MariaDB backends
+        env:
+          PREVIOUS_IMAGE: ${{ needs.private-package.outputs.previous_image }}
         run: |
+          flags=()
+          if [[ -n "$PREVIOUS_IMAGE" ]]; then flags+=(--previous "$PREVIOUS_IMAGE"); fi
           for database in pgsql mysql mariadb; do
-            python3 test/test-database.py --image status-v3:test --database "$database"
+            python3 test/test-database.py --image status-v3:test --database "$database" "${flags[@]}"
           done
 
       - name: Keep the database test reports
@@ -232,6 +302,49 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Log in to publish the tested private candidate
+        if: needs.private-package.outputs.publish_enabled == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: williamboglietti
+          password: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
+
+      - name: Push exactly the locally tested image
+        if: needs.private-package.outputs.publish_enabled == 'true'
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
+        run: |
+          echo "::add-mask::$IMAGE"
+          candidate="$IMAGE:candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$ARCHITECTURE"
+          docker tag status-v3:test "$candidate"
+          docker push "$candidate"
+          mkdir -p .build/digests
+          docker buildx imagetools inspect "$candidate" --format '{{json .Manifest}}' \
+            > .build/candidate-manifest.json
+          python3 - <<'PYTHON'
+          import json, os, pathlib, re
+          manifest = json.loads(pathlib.Path('.build/candidate-manifest.json').read_text())
+          digest = manifest['digest']
+          if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+              raise SystemExit('Candidate digest is not a SHA256 manifest reference.')
+          architecture = os.environ['ARCHITECTURE']
+          receipt = {'architecture': architecture, 'digest': digest,
+                     'fingerprint': os.environ['FINGERPRINT'], 'revision': os.environ['GITHUB_SHA']}
+          pathlib.Path('.build/digests/' + architecture + '.json').write_text(json.dumps(receipt) + '\n')
+          PYTHON
+
+      - name: Share the tested candidate digest
+        if: needs.private-package.outputs.publish_enabled == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tested-digest-${{ matrix.architecture }}
+          path: .build/digests/${{ matrix.architecture }}.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
   record-locks:
     needs: [resolve, build-test]
     if: github.ref == 'refs/heads/main' && needs.resolve.outputs.build_required == 'true'
@@ -239,6 +352,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+    outputs:
+      main_sha: ${{ steps.record.outputs.main_sha }}
     steps:
       - name: Check out the source revision tested by both architectures
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -252,6 +367,7 @@ jobs:
           name: resolved-lock
 
       - name: Record only validated source and dependency locks
+        id: record
         env:
           FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
         run: |
@@ -267,5 +383,97 @@ jobs:
             git commit -m "build: update validated Cachet sources ${FINGERPRINT:0:12}"
             git push origin HEAD:main
           fi
-          # These locks passed both architectures. No image is uploaded.
-          printf '%s\n' 'Recipe validated; no image published and no server changed.' >> "$GITHUB_STEP_SUMMARY"
+          echo "main_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          printf '%s\n' 'Recipe validated. Private image publication, if enabled, is handled separately after both architectures pass.' >> "$GITHUB_STEP_SUMMARY"
+
+  publish-private-image:
+    needs: [resolve, private-package, build-test, record-locks]
+    if: >-
+      needs.resolve.outputs.build_required == 'true' &&
+      needs.private-package.outputs.publish_enabled == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the tested source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download resolved locks
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: resolved-lock
+
+      - name: Download only tested candidate receipts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: tested-digest-*
+          path: .build/digests
+          merge-multiple: true
+
+      - name: Set up Buildx for private manifest promotion
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR for private promotion
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: williamboglietti
+          password: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
+
+      - name: Recheck private package and tested main revision
+        env:
+          STATUS_V3_GHCR_TOKEN: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
+          EXPECTED_MAIN_SHA: ${{ needs.record-locks.outputs.main_sha }}
+        run: |
+          python3 scripts/private_image.py verify
+          git fetch --no-tags origin main
+          if [[ "$(git rev-parse origin/main)" != "$EXPECTED_MAIN_SHA" ]]; then
+            echo 'main changed after validation; refusing private image promotion.' >&2
+            exit 1
+          fi
+
+      - name: Promote exactly the tested digests into the private package
+        env:
+          FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
+          PRIVATE_IMAGE: ${{ env.PRIVATE_IMAGE }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          import pathlib
+          import re
+          import subprocess
+
+          fingerprint = os.environ['FINGERPRINT']
+          if not re.fullmatch(r'[0-9a-f]{64}', fingerprint):
+              raise SystemExit('Resolver fingerprint must be a SHA256 value.')
+          references = []
+          for architecture in ('amd64', 'arm64'):
+              receipt_path = pathlib.Path('.build/digests') / f'{architecture}.json'
+              receipt = json.loads(receipt_path.read_text())
+              if (receipt.get('architecture') != architecture or
+                      receipt.get('fingerprint') != fingerprint or
+                      receipt.get('revision') != os.environ['GITHUB_SHA'] or
+                      not re.fullmatch(r'sha256:[0-9a-f]{64}', receipt.get('digest', ''))):
+                  raise SystemExit(f'Invalid tested candidate receipt for {architecture}.')
+              references.append(os.environ['PRIVATE_IMAGE'] + '@' + receipt['digest'])
+          unique = (os.environ['PRIVATE_IMAGE'] + ':build-' + fingerprint[:16] + '-' +
+                    os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'])
+          subprocess.run([
+              'docker', 'buildx', 'imagetools', 'create', '--tag', unique,
+              '--tag', os.environ['PRIVATE_IMAGE'] + ':v3',
+              '--tag', os.environ['PRIVATE_IMAGE'] + ':latest', *references,
+          ], check=True)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('\nPublished a private multi-architecture image after both test jobs passed.\n')
+              summary.write('No public image was pushed and no server was changed.\n')
+          PYTHON
+
+      - name: Remove private registry credentials
+        if: always()
+        run: docker logout ghcr.io || true

@@ -317,7 +317,9 @@ def main() -> None:
         command(["image", "inspect", args.image])
         command(["pull", engine["image"]], timeout=600)
         if args.previous:
-            command(["pull", args.previous], timeout=600)
+            cached_previous = command(["image", "inspect", args.previous], check=False)
+            if cached_previous.returncode:
+                command(["pull", args.previous], timeout=600)
         database_image_id = json.loads(command(["image", "inspect", engine["image"]]).stdout)[0]["Id"]
 
         result = command(["network", "create", "--label", OWNER_LABEL + "=" + test_id, prefix + "-net"])
@@ -431,7 +433,7 @@ def main() -> None:
             if failure is None:
                 failure = RuntimeError("One or more owned test resources could not be cleaned up")
         report = {
-            "image": args.image, "previous": args.previous, "database": args.database,
+            "image": args.image, "previous_image_tested": bool(args.previous), "database": args.database,
             "database_image": engine["image"], "database_image_id": database_image_id,
             "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "checks": checks, "notes": notes, "passed": passed, "cleanup_complete": not cleanup_errors,

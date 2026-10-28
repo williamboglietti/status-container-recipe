@@ -88,10 +88,10 @@ pull request et push sur `main` : actionlint, ShellCheck, tests unitaires,
 syntaxe Python et validation Compose.
 
 [`image.yml`](.github/workflows/image.yml) construit et teste les images sur
-des runners natifs AMD64 et ARM64. Il vérifie les entrées amont toutes les deux
-heures, résout les dépendances Composer quotidiennement et reconstruit sans
-cache chaque semaine ISO UTC. Un push sur `main` ou un lancement manuel demande
-également une validation.
+des runners natifs AMD64 et ARM64 à chaque pull request, sur la branche `main`
+et selon le calendrier. Il vérifie les entrées amont toutes les deux heures,
+résout les dépendances Composer quotidiennement et reconstruit sans cache
+chaque semaine ISO UTC. Un lancement manuel demande également une validation.
 
 Le workflow vérifie les installations SQLite, PostgreSQL, MySQL et MariaDB,
 les rôles et le fichier Compose. `composer audit` et Trivy bloquent les
@@ -99,10 +99,29 @@ vulnérabilités selon les critères définis dans le workflow. Les locks ne son
 enregistrés qu'après réussite des deux architectures et si `main` n'a pas
 changé pendant les tests.
 
-La CI publique construit des images temporaires sans s'authentifier à un
-registre ni distribuer d'image, de couche, d'archive de sources amont ou de
-cache de build. Les artifacts contiennent seulement les locks et rapports de
-tests synthétiques ou du scanner.
+Les pull requests utilisent `checks.yml` et la partie build/test de `image.yml` ;
+elles ne reçoivent aucun identifiant GHCR. Le workflow d'image construit des
+images temporaires ; il ne publie aucune image publiquement, aucune couche et
+aucune archive de sources amont. Après réussite des deux architectures, des
+tests et de Trivy sur `main`, il peut publier les digests testés dans le package
+privé `ghcr.io/williamboglietti/status-v3`.
+
+Cette étape est désactivée tant que `STATUS_V3_PRIVATE_IMAGE_ENABLED` n'est pas
+`true` et que le secret Actions `STATUS_V3_GHCR_TOKEN` n'est pas configuré. Le
+secret doit être un PAT classic limité à `read:packages` et `write:packages`,
+sans scope `repo` ; il n'est utilisé que par les workflows de `main`, jamais
+par les tests de pull request.
+
+Un lancement manuel sur une branche autre que `main` valide les deux images
+sans accès GHCR, sans mise à jour des locks et sans publication. Les jobs de
+publication et d'enregistrement des locks sont réservés à `main`.
+
+Le package GHCR doit rester privé et sans héritage d'accès du dépôt public. Le
+workflow vérifie sa visibilité avant la promotion des tags `v3` et `latest`.
+L'image ne porte pas le label OCI `org.opencontainers.image.source`, afin que
+GHCR ne la lie pas automatiquement aux permissions publiques du dépôt. Les
+artifacts ne contiennent que les locks, les rapports synthétiques/scanner et
+les reçus SHA256 des candidats testés, jamais les couches ou l'image.
 
 ## Contrats à préserver
 
