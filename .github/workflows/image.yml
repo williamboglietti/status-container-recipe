@@ -125,7 +125,6 @@ jobs:
           persist-credentials: false
 
       - name: Set up Buildx for a private package bootstrap
-        if: vars.STATUS_V3_PRIVATE_IMAGE_ENABLED == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Verify private GHCR readiness and previous image
@@ -138,7 +137,7 @@ jobs:
         run: python3 scripts/private_image.py prepare
 
       - name: Remove bootstrap registry credentials
-        if: always() && vars.STATUS_V3_PRIVATE_IMAGE_ENABLED == 'true'
+        if: always()
         run: docker logout ghcr.io || true
 
   build-test:
