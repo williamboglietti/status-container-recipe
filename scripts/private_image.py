@@ -143,14 +143,9 @@ def package_bootstrap(token: str, username: str) -> dict:
 def prepare() -> None:
     token = os.environ.get("STATUS_V3_GHCR_TOKEN", "")
     username = os.environ.get("STATUS_V3_GHCR_USERNAME", OWNER)
-    enabled = os.environ.get("STATUS_V3_PRIVATE_IMAGE_ENABLED", "").lower() == "true"
-    if not enabled:
-        write_output({"publish_enabled": "false", "previous_image": ""})
-        append_summary("Private GHCR publishing is disabled; this run only validates the recipe.")
-        return
     if not token:
         write_output({"publish_enabled": "false", "previous_image": ""})
-        append_summary("Private GHCR publishing is enabled in settings but the required Actions secret is missing; no image will be pushed.")
+        append_summary("Private GHCR publishing is disabled because the Actions secret is missing; this run only validates the recipe.")
         return
 
     package = github_package(IMAGE, token)

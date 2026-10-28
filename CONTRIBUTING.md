@@ -106,11 +106,13 @@ aucune archive de sources amont. Après réussite des deux architectures, des
 tests et de Trivy sur `main`, il peut publier les digests testés dans le package
 privé `ghcr.io/williamboglietti/status-v3`.
 
-Cette étape est désactivée tant que `STATUS_V3_PRIVATE_IMAGE_ENABLED` n'est pas
-`true` et que le secret Actions `STATUS_V3_GHCR_TOKEN` n'est pas configuré. Le
-secret doit être un PAT classic limité à `read:packages` et `write:packages`,
-sans scope `repo` ; il n'est utilisé que par les workflows de `main`, jamais
-par les tests de pull request.
+La publication privée est activée dès que le secret Actions
+`STATUS_V3_GHCR_TOKEN` est configuré. Le secret doit être un PAT classic limité
+à `read:packages` et `write:packages`, sans scope `repo`. Sans ce secret, la CI
+continue de valider les images mais ne publie rien. Le secret n'est utilisé que
+par les workflows de `main`, jamais par les tests de pull request. Après succès
+des tests et du scanner, le workflow publie l'image privée ; il ne déclenche
+aucun déploiement.
 
 Un lancement manuel sur une branche autre que `main` valide les deux images
 sans accès GHCR, sans mise à jour des locks et sans publication. Les jobs de

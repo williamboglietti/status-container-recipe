@@ -40,7 +40,6 @@ class PrivatePackageGuard(unittest.TestCase):
             output = Path(temporary) / "output"
             summary = Path(temporary) / "summary"
             environment = {
-                "STATUS_V3_PRIVATE_IMAGE_ENABLED": "true",
                 "STATUS_V3_GHCR_TOKEN": "",
                 "GITHUB_OUTPUT": str(output),
                 "GITHUB_STEP_SUMMARY": str(summary),
