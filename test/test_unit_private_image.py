@@ -13,6 +13,11 @@ SPEC.loader.exec_module(PRIVATE_IMAGE)
 
 
 class PrivatePackageGuard(unittest.TestCase):
+    def test_candidate_push_uses_the_configured_private_image(self):
+        workflow = (ROOT / ".github/workflows/image.yml").read_text()
+        self.assertIn('candidate="$PRIVATE_IMAGE:candidate-', workflow)
+        self.assertNotIn('candidate="$IMAGE:candidate-', workflow)
+
     def test_only_private_unlinked_packages_are_accepted(self):
         self.assertTrue(PRIVATE_IMAGE.private_unlinked_package({"visibility": "private"}))
         self.assertFalse(PRIVATE_IMAGE.private_unlinked_package({"visibility": "public"}))

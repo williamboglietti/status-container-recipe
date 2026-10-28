@@ -130,7 +130,6 @@ jobs:
       - name: Verify private GHCR readiness and previous image
         id: prepare
         env:
-          STATUS_V3_PRIVATE_IMAGE_ENABLED: ${{ vars.STATUS_V3_PRIVATE_IMAGE_ENABLED }}
           STATUS_V3_GHCR_TOKEN: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
           STATUS_V3_GHCR_USERNAME: williamboglietti
           RUNNER_TEMP: ${{ runner.temp }}
@@ -315,8 +314,8 @@ jobs:
           ARCHITECTURE: ${{ matrix.architecture }}
           FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
         run: |
-          echo "::add-mask::$IMAGE"
-          candidate="$IMAGE:candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$ARCHITECTURE"
+          echo "::add-mask::$PRIVATE_IMAGE"
+          candidate="$PRIVATE_IMAGE:candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$ARCHITECTURE"
           docker tag status-v3:test "$candidate"
           docker push "$candidate"
           mkdir -p .build/digests
