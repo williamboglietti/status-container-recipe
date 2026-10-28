@@ -44,8 +44,10 @@ ARG CACHET_APP_REF
 ARG CACHET_CORE_REF
 ARG SOURCE_FINGERPRINT
 ARG BUILD_REVISION
+# Keep `org.opencontainers.image.source` unset: GHCR could link the private
+# package to this public repository and inherit public read access. `url` keeps
+# the public recipe address available in image metadata.
 LABEL org.opencontainers.image.title="Status v3 — for Cachet v3" \
-      org.opencontainers.image.source="https://github.com/williamboglietti/status-v3" \
       org.opencontainers.image.url="https://github.com/williamboglietti/status-v3" \
       org.opencontainers.image.vendor="" \
       org.opencontainers.image.licenses="LicenseRef-Cachet" \

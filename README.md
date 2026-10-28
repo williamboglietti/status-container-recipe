@@ -16,14 +16,21 @@ Les écarts sont décrits plus bas.
 
 ## Aucune image publique
 
-**Ce dépôt ne distribue pas l'image construite.** La licence de Cachet 3
-interdit de distribuer Cachet comme produit autonome. Le dépôt fournit donc
-seulement la recette : chacun construit l'image lui-même, avec `make build`,
-ou la tire de son propre registre privé.
+**Ce dépôt ne publie pas d'image publiquement.** La licence de Cachet 3 interdit
+de distribuer Cachet comme produit autonome. Le dépôt fournit la recette pour
+que chacun construise sa propre image avec `make build` ou l'envoie dans son
+propre registre privé. Après validation complète, le workflow mainteneur peut
+aussi publier une image pour nos propres déploiements dans le package GHCR
+`ghcr.io/williamboglietti/status-v3`, qui reste privé. Ce package n'est pas un
+téléchargement public du projet.
 
 Les références de Cachet, des dépendances et des images de base sont figées
-pour rendre la construction reproductible. La CI valide les mises à jour sur
-AMD64 et ARM64 sans distribuer les images construites.
+pour rendre la construction reproductible. La CI publique valide les mises à
+jour sur AMD64 et ARM64, y compris les pull requests. Les tests sur les pull
+requests n'utilisent pas le secret GHCR. Le package privé n'est publié que
+depuis `main`, après réussite des deux architectures et du scanner. Les images
+ne portent pas de label OCI qui relierait le package privé aux permissions
+publiques du dépôt.
 
 ## Démarrage rapide
 

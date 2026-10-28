@@ -23,6 +23,8 @@ Première version publique de la recette pour Cachet v3.
   base ; `composer audit` et Trivy bloquants.
 - Tests sur SQLite, PostgreSQL 17, MySQL 8.4 et MariaDB 11.4, et test de bout
   en bout du `docker-compose.yml`.
+- Publication facultative d'une image privée GHCR pour les instances maintenues,
+  uniquement après les tests natifs AMD64/ARM64 et le scan Trivy.
 - CI sur les runners GitHub : vérification toutes les deux heures, résolution
   Composer quotidienne et reconstruction hebdomadaire sans cache, avec validation
   sur `linux/amd64` et `linux/arm64`.
