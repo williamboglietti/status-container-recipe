@@ -11,10 +11,10 @@
     "repository": "cachethq/core"
   },
   "dependency_checked_on": "2026-10-29",
-  "fingerprint": "585e60b79aa7728f5b1eb4c70b77b643975f632cb26e94a81389b0581bf028c1",
+  "fingerprint": "99068325e0b2af3491ab773a2e05bb3ba76665757ef80ceeb3197c8011bce829",
   "images": {
     "composer": {
-      "digest": "sha256:b6dcd72ca98fa19d0e5b8476de179859704891fad06dd9e0b96833d4c430a5fc",
+      "digest": "sha256:2cf275428757e5435a667bfc0d038b14520ca02be2b1b70d44a05c8c19e2de48",
       "tag": "composer:2"
     },
     "frankenphp": {
