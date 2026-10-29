@@ -10,15 +10,15 @@
     "commit": "c5f06fe8d8e2b83652c6f9632eb48414fb4be160",
     "repository": "cachethq/core"
   },
-  "dependency_checked_on": "2026-10-28",
-  "fingerprint": "a25a9b606e2c62034ea3addd74d9520f43627ef724c34cd1d3920db4a3449edc",
+  "dependency_checked_on": "2026-10-29",
+  "fingerprint": "585e60b79aa7728f5b1eb4c70b77b643975f632cb26e94a81389b0581bf028c1",
   "images": {
     "composer": {
       "digest": "sha256:b6dcd72ca98fa19d0e5b8476de179859704891fad06dd9e0b96833d4c430a5fc",
       "tag": "composer:2"
     },
     "frankenphp": {
-      "digest": "sha256:65669c3e1170b92ba51023116d5394ad63478e0ccb4b849c7478640f19641611",
+      "digest": "sha256:81ba601edfb650d1df63f54dafdedc021d9d1fb37517850a4e93278ab19cced1",
       "tag": "dunglas/frankenphp:1-php8.4-bookworm"
     }
   },
