@@ -1,17 +1,17 @@
 {
   "app": {
     "branch": "3.x",
-    "commit": "40bd0819ee46ee7094c336a1240a2a7a1291ccb8",
+    "commit": "6f9cf0906256e8c4705fa5cf6812dc022b680509",
     "repository": "cachethq/cachet"
   },
-  "composer_lock_sha256": "735b5ff1575f4154e58e1672c2bbfb2d3c2f6d25804d58e1e23de2b93d294779",
+  "composer_lock_sha256": "a85da051e05ca31c4b9bbc5b49769a6e1bfd75530c50ab8e49cb15c90647a0fe",
   "core": {
     "branch": "main",
-    "commit": "c5f06fe8d8e2b83652c6f9632eb48414fb4be160",
+    "commit": "819fbf078943f40fd49ff9eb63494499e6890e91",
     "repository": "cachethq/core"
   },
-  "dependency_checked_on": "2026-10-30",
-  "fingerprint": "44bc6a60eeec32a6ca68fe60d9bed0ffb5a1aa505099216da5113f98d0b9ee57",
+  "dependency_checked_on": "2026-10-31",
+  "fingerprint": "a1691a824ddd5d5bb46082b930b72be533f8396b31c228e8e76999d8fb95733c",
   "images": {
     "composer": {
       "digest": "sha256:4ed71c38c6d788eb4e4e3747b5332f5b40d5b5a6fcadd5062a1a70986a118e0a",
