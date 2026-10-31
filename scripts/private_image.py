@@ -5,12 +5,9 @@ import base64
 import json
 import os
 import re
-import subprocess
-import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
 OWNER = "williamboglietti"
 IMAGE = f"ghcr.io/{OWNER}/status-v3"
@@ -33,15 +30,15 @@ def private_unlinked_package(package: dict | None) -> bool:
     return bool(package and package.get("visibility") == "private" and not package.get("repository"))
 
 
-def multiarch_reference(image: str, manifest: dict, digest: str | None) -> str | None:
-    """Return a previous digest only for a valid linux/amd64+arm64 manifest index."""
+def amd64_reference(image: str, manifest: dict, digest: str | None) -> str | None:
+    """Return a previous digest only when its manifest includes linux/amd64."""
     if not digest or not SHA256.fullmatch(digest):
         return None
     platforms = {
         (entry.get("platform", {}).get("os"), entry.get("platform", {}).get("architecture"))
         for entry in manifest.get("manifests", [])
     }
-    if not {("linux", "amd64"), ("linux", "arm64")}.issubset(platforms):
+    if ("linux", "amd64") not in platforms:
         return None
     return f"{image}@{digest}"
 
@@ -71,7 +68,7 @@ def github_package(image: str, token: str) -> dict | None:
         raise PrivateImageError(f"GitHub package metadata request failed with HTTP {error.code}") from None
 
 
-def latest_multiarch_reference(image: str, username: str, token: str) -> str | None:
+def latest_amd64_reference(image: str, username: str, token: str) -> str | None:
     name = image.removeprefix("ghcr.io/")
     scope = urllib.parse.urlencode({"service": "ghcr.io", "scope": f"repository:{name}:pull"})
     basic = base64.b64encode(f"{username}:{token}".encode()).decode()
@@ -90,7 +87,7 @@ def latest_multiarch_reference(image: str, username: str, token: str) -> str | N
         if error.code in (401, 403):
             return None
         raise PrivateImageError(f"GHCR manifest lookup failed with HTTP {error.code}") from None
-    return multiarch_reference(image, manifest, headers.get("Docker-Content-Digest"))
+    return amd64_reference(image, manifest, headers.get("Docker-Content-Digest"))
 
 
 def write_output(values: dict[str, str]) -> None:
@@ -111,35 +108,6 @@ def append_summary(message: str) -> None:
             summary.write(message.rstrip() + "\n")
 
 
-def package_bootstrap(token: str, username: str) -> dict:
-    """Create an unlinked scratch package; user-scoped GHCR packages default private."""
-    temp_root = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "status-v3-ghcr-bootstrap"
-    temp_root.mkdir(parents=True, exist_ok=True)
-    dockerfile = temp_root / "Dockerfile"
-    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
-    image = IMAGE + ":private-bootstrap-" + os.environ.get("GITHUB_RUN_ID", "local")
-    login = subprocess.run(
-        ["docker", "login", "--username", username, "--password-stdin", "ghcr.io"],
-        input=token, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    if login.returncode:
-        raise PrivateImageError("Could not authenticate to GHCR for private package bootstrap")
-    try:
-        build = subprocess.run(
-            ["docker", "buildx", "build", "--platform", "linux/amd64", "--push",
-             "--file", str(dockerfile), "--tag", image, str(temp_root)],
-            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
-        if build.returncode:
-            raise PrivateImageError("Could not create the private GHCR package with a scratch bootstrap image")
-    finally:
-        subprocess.run(["docker", "logout", "ghcr.io"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    package = github_package(IMAGE, token)
-    if not private_unlinked_package(package):
-        raise PrivateImageError("The new GHCR package is not private and unlinked; refusing to build or promote Cachet")
-    return package
-
-
 def prepare() -> None:
     token = os.environ.get("STATUS_V3_GHCR_TOKEN", "")
     username = os.environ.get("STATUS_V3_GHCR_USERNAME", OWNER)
@@ -150,24 +118,29 @@ def prepare() -> None:
 
     package = github_package(IMAGE, token)
     if package is None:
-        package = package_bootstrap(token, username)
+        write_output({"publish_enabled": "false", "previous_image": ""})
+        append_summary(
+            "Private GHCR package does not exist; publication is disabled. "
+            "Create and verify the private, unlinked package outside this workflow before enabling publication."
+        )
+        return
     if not private_unlinked_package(package):
         write_output({"publish_enabled": "false", "previous_image": ""})
         append_summary("Private publishing is disabled because the status-v3 GHCR package is public or linked to repository permissions.")
         return
 
-    previous = latest_multiarch_reference(IMAGE, username, token)
+    previous = latest_amd64_reference(IMAGE, username, token)
     if previous is None:
         legacy = github_package(LEGACY_IMAGE, token)
         if legacy and legacy.get("visibility") == "private":
-            previous = latest_multiarch_reference(LEGACY_IMAGE, username, token)
+            previous = latest_amd64_reference(LEGACY_IMAGE, username, token)
 
     write_output({"publish_enabled": "true", "previous_image": previous or ""})
     if previous:
         print(f"::add-mask::{previous}")
         append_summary("The private GHCR package is ready. Migration and snapshot-restore tests will use its immutable previous digest.")
     else:
-        append_summary("The private GHCR package is ready. No previous multi-architecture digest was found; this is a first-install validation.")
+        append_summary("The private GHCR package is ready. No previous AMD64 digest was found; this is a first-install validation.")
 
 
 def verify() -> None:

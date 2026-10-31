@@ -52,7 +52,9 @@ instance en service ni ses données.
 | `make test` | Ensemble des contrôles unitaires et d'intégration |
 
 `IMAGE` permet de choisir le nom de l'image locale et `PLATFORM` sa plateforme,
-par exemple `make build IMAGE=status-v3:dev PLATFORM=linux/arm64`.
+par exemple `make build IMAGE=status-v3:dev PLATFORM=linux/amd64`. La CI ne
+construit et ne teste actuellement que l'AMD64. La validation ARM est suspendue
+jusqu'à une décision distincte sur le besoin, le coût et un runner natif.
 
 Pour tester une migration depuis une image précédente et la restauration des
 données synthétiques associées, fournissez son digest immuable :
@@ -87,23 +89,25 @@ main. L'empreinte de recette exclut les caches Python et fichiers générés.
 pull request et push sur `main` : actionlint, ShellCheck, tests unitaires,
 syntaxe Python et validation Compose.
 
-[`image.yml`](.github/workflows/image.yml) construit et teste les images sur
-des runners natifs AMD64 et ARM64 à chaque pull request, sur la branche `main`
-et selon le calendrier. Il vérifie les entrées amont toutes les deux heures,
+[`image.yml`](.github/workflows/image.yml) construit et teste l'image AMD64
+sur un runner GitHub standard à chaque pull request, sur la branche `main` et
+selon le calendrier. ARM64 est suspendu ; aucun job QEMU ou runner ARM hébergé
+n'est lancé. Le workflow vérifie les entrées amont toutes les deux heures,
 résout les dépendances Composer quotidiennement et reconstruit sans cache
 chaque semaine ISO UTC. Un lancement manuel demande également une validation.
 
 Le workflow vérifie les installations SQLite, PostgreSQL, MySQL et MariaDB,
-les rôles et le fichier Compose. `composer audit` et Trivy bloquent les
-vulnérabilités selon les critères définis dans le workflow. Les locks ne sont
-enregistrés qu'après réussite des deux architectures et si `main` n'a pas
-changé pendant les tests.
+les rôles et le fichier Compose. `composer audit` et Trivy s'exécutent avant
+toute promotion. Trivy signale MEDIUM/LOW sans bloquer et bloque toute HIGH ou
+CRITICAL, même sans correctif. Les locks ne sont enregistrés qu'après réussite
+du build/test et du scan AMD64, et si `main` n'a pas changé pendant les tests.
 
-Les pull requests utilisent `checks.yml` et la partie build/test de `image.yml` ;
-elles ne reçoivent aucun identifiant GHCR. Le workflow d'image construit des
-images temporaires ; il ne publie aucune image publiquement, aucune couche et
-aucune archive de sources amont. Après réussite des deux architectures, des
-tests et de Trivy sur `main`, il peut publier les digests testés dans le package
+Les pull requests utilisent `checks.yml` et la partie build/test/scan de
+`image.yml` ; elles ne reçoivent aucun identifiant GHCR et ne publient pas
+d'image. Le workflow d'image construit des images temporaires ; il ne publie
+aucune image publiquement, aucune couche et
+aucune archive de sources amont. Après réussite du build/test et de Trivy AMD64
+sur `main`, il peut publier le digest testé dans le package
 privé `ghcr.io/williamboglietti/status-v3`.
 
 La publication privée est activée dès que le secret Actions
@@ -114,12 +118,15 @@ par les workflows de `main`, jamais par les tests de pull request. Après succè
 des tests et du scanner, le workflow publie l'image privée ; il ne déclenche
 aucun déploiement.
 
-Un lancement manuel sur une branche autre que `main` valide les deux images
+Un lancement manuel sur une branche autre que `main` valide l'image AMD64
 sans accès GHCR, sans mise à jour des locks et sans publication. Les jobs de
 publication et d'enregistrement des locks sont réservés à `main`.
 
-Le package GHCR doit rester privé et sans héritage d'accès du dépôt public. Le
-workflow vérifie sa visibilité avant la promotion des tags `v3` et `latest`.
+Le package GHCR doit être créé hors du workflow, puis rester privé et sans
+héritage d'accès du dépôt public. Si le package n'existe pas, le workflow
+continue à valider la recette mais désactive la publication : aucun bootstrap
+GHCR n'est poussé avant le scan. Le workflow vérifie sa visibilité avant la
+promotion des tags `v3` et `latest`.
 L'image ne porte pas le label OCI `org.opencontainers.image.source`, afin que
 GHCR ne la lie pas automatiquement aux permissions publiques du dépôt. Les
 artifacts ne contiennent que les locks, les rapports synthétiques/scanner et

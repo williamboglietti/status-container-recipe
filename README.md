@@ -26,11 +26,16 @@ téléchargement public du projet.
 
 Les références de Cachet, des dépendances et des images de base sont figées
 pour rendre la construction reproductible. La CI publique valide les mises à
-jour sur AMD64 et ARM64, y compris les pull requests. Les tests sur les pull
-requests n'utilisent pas le secret GHCR. Le package privé n'est publié que
-depuis `main`, après réussite des deux architectures et du scanner. Les images
-ne portent pas de label OCI qui relierait le package privé aux permissions
-publiques du dépôt.
+jour sur AMD64, y compris les pull requests. La validation ARM64 est suspendue
+en attendant une décision distincte sur le besoin, le coût et un runner natif.
+Les tests sur les pull requests n'utilisent pas le secret GHCR. Le package privé
+n'est publié que depuis `main`, après réussite du build/test AMD64 et du scan
+strict. Les images ne portent pas de label OCI qui relierait le package privé
+aux permissions publiques du dépôt.
+
+Le package privé doit exister avant d'activer sa publication. S'il manque, la
+CI continue les tests et le scan mais désactive la publication ; elle ne pousse
+pas d'image bootstrap avant le contrôle Trivy.
 
 ## Démarrage rapide
 
@@ -95,7 +100,7 @@ registre privé, mettez `CACHET_IMAGE=<registre>/<image>@sha256:...` dans
 | Port | 8000 (publié sur `80`) | 8000 (publié sur `127.0.0.1:8000`) |
 | Sources | Archive de la branche ou du tag `cachet_ver` | Commits, `composer.lock` et digests figés et vérifiés |
 | Tests | bats sur SQLite, MySQL et PostgreSQL | Python sur SQLite, PostgreSQL 17, MySQL 8.4, MariaDB 11.4 et Compose |
-| Architectures | amd64 (branche arm32 à part) | amd64 et arm64, construites nativement |
+| Architectures | amd64 (branche arm32 à part) | amd64 dans la CI ; ARM suspendu |
 | Publication | Image publique sur Docker Hub, un tag par version | Aucune image publique (licence de Cachet 3) |
 
 **FrankenPHP à la place de nginx, PHP-FPM et supervisor.** Un seul processus

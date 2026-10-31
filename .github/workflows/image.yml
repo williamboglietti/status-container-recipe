@@ -16,8 +16,8 @@ on:
         type: boolean
         default: true
 
-# No public image is published. A maintainer-only publisher may write to a
-# private, unlinked GHCR package after both native architectures pass.
+# No public image is published. A maintainer-only publisher may write to an
+# already-existing private, unlinked GHCR package after the AMD64 scan passes.
 permissions:
   contents: read
 
@@ -124,20 +124,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Buildx for a private package bootstrap
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Verify private GHCR readiness and previous image
+      - name: Verify existing private GHCR package and previous image
         id: prepare
         env:
           STATUS_V3_GHCR_TOKEN: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
           STATUS_V3_GHCR_USERNAME: williamboglietti
           RUNNER_TEMP: ${{ runner.temp }}
         run: python3 scripts/private_image.py prepare
-
-      - name: Remove bootstrap registry credentials
-        if: always()
-        run: docker logout ghcr.io || true
 
   build-test:
     needs: [resolve, private-package]
@@ -152,8 +145,7 @@ jobs:
         include:
           - architecture: amd64
             runner: ubuntu-24.04
-          - architecture: arm64
-            runner: ubuntu-24.04-arm
+        # ARM builds and tests are suspended pending a separate need/cost decision.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     permissions:
@@ -179,7 +171,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to pull the previous private image
-        if: needs.private-package.outputs.publish_enabled == 'true' && needs.private-package.outputs.previous_image != ''
+        if: github.ref == 'refs/heads/main' && needs.private-package.outputs.publish_enabled == 'true' && needs.private-package.outputs.previous_image != ''
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
@@ -187,7 +179,7 @@ jobs:
           password: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
 
       - name: Pull the previous image for migration tests
-        if: needs.private-package.outputs.publish_enabled == 'true' && needs.private-package.outputs.previous_image != ''
+        if: github.ref == 'refs/heads/main' && needs.private-package.outputs.publish_enabled == 'true' && needs.private-package.outputs.previous_image != ''
         env:
           PREVIOUS_IMAGE: ${{ needs.private-package.outputs.previous_image }}
         run: |
@@ -276,7 +268,19 @@ jobs:
           version: v0.75.0
           cache: false
 
-      - name: Reject fixable HIGH and CRITICAL image vulnerabilities
+      - name: Report MEDIUM and LOW image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: status-v3:test
+          scan-type: image
+          scanners: vuln
+          vuln-type: os,library
+          severity: MEDIUM,LOW
+          exit-code: '0'
+          format: table
+          skip-setup-trivy: true
+
+      - name: Reject HIGH and CRITICAL image vulnerabilities, fixed or not
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: status-v3:test
@@ -284,7 +288,6 @@ jobs:
           scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
-          ignore-unfixed: true
           exit-code: '1'
           format: json
           output: .build/trivy.json
@@ -301,7 +304,7 @@ jobs:
           retention-days: 14
 
       - name: Log in to publish the tested private candidate
-        if: needs.private-package.outputs.publish_enabled == 'true'
+        if: github.ref == 'refs/heads/main' && needs.private-package.outputs.publish_enabled == 'true'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
@@ -309,7 +312,7 @@ jobs:
           password: ${{ secrets.STATUS_V3_GHCR_TOKEN }}
 
       - name: Push exactly the locally tested image
-        if: needs.private-package.outputs.publish_enabled == 'true'
+        if: github.ref == 'refs/heads/main' && needs.private-package.outputs.publish_enabled == 'true'
         env:
           ARCHITECTURE: ${{ matrix.architecture }}
           FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
@@ -334,7 +337,7 @@ jobs:
           PYTHON
 
       - name: Share the tested candidate digest
-        if: needs.private-package.outputs.publish_enabled == 'true'
+        if: github.ref == 'refs/heads/main' && needs.private-package.outputs.publish_enabled == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tested-digest-${{ matrix.architecture }}
@@ -353,7 +356,7 @@ jobs:
     outputs:
       main_sha: ${{ steps.record.outputs.main_sha }}
     steps:
-      - name: Check out the source revision tested by both architectures
+      - name: Check out the source revision tested on AMD64
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -382,11 +385,12 @@ jobs:
             git push origin HEAD:main
           fi
           echo "main_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          printf '%s\n' 'Recipe validated. Private image publication, if enabled, is handled separately after both architectures pass.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Recipe validated on AMD64. Private image publication, if enabled, is handled separately after the strict scan passes.' >> "$GITHUB_STEP_SUMMARY"
 
   publish-private-image:
     needs: [resolve, private-package, build-test, record-locks]
     if: >-
+      github.ref == 'refs/heads/main' &&
       needs.resolve.outputs.build_required == 'true' &&
       needs.private-package.outputs.publish_enabled == 'true'
     runs-on: ubuntu-24.04
@@ -451,7 +455,7 @@ jobs:
           if not re.fullmatch(r'[0-9a-f]{64}', fingerprint):
               raise SystemExit('Resolver fingerprint must be a SHA256 value.')
           references = []
-          for architecture in ('amd64', 'arm64'):
+          for architecture in ('amd64',):
               receipt_path = pathlib.Path('.build/digests') / f'{architecture}.json'
               receipt = json.loads(receipt_path.read_text())
               if (receipt.get('architecture') != architecture or
@@ -468,7 +472,7 @@ jobs:
               '--tag', os.environ['PRIVATE_IMAGE'] + ':latest', *references,
           ], check=True)
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('\nPublished a private multi-architecture image after both test jobs passed.\n')
+              summary.write('\nPublished a private AMD64 image after the test job passed.\n')
               summary.write('No public image was pushed and no server was changed.\n')
           PYTHON
 
